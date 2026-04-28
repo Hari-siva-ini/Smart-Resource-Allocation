@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+    }
+    
+    // Users can upload their own proofs / ID proofs
+    match /users/{userId}/{fileName} {
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Reports images can be uploaded by reporters
+    match /reports/{reportId}/{fileName} {
+      allow write: if isAuthenticated(); // Allow any authenticated user for simplicity, but could be restricted to reporter
+    }
+    
+    // Task proofs can be uploaded by volunteers
+    match /tasks/{taskId}/{fileName} {
+      allow write: if isAuthenticated();
+    }
+  }
+}

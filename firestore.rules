@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Function to check if user is volunteer
+    function isVolunteer() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'volunteer';
+    }
+    
+    // Function to check if user is reporter
+    function isReporter() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'reporter';
+    }
+
+    // Admins can read and write everything
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Users can read and update their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Anyone can create their own profile upon registration
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Reports collection
+    match /reports/{reportId} {
+      // Reporters can create reports and read their own
+      allow create: if isReporter() && request.resource.data.reporterUid == request.auth.uid;
+      allow read: if isReporter() && resource.data.reporterUid == request.auth.uid;
+      
+      // Volunteers can read pending reports to accept them
+      allow read: if isVolunteer();
+      // Volunteers can update report status when accepting or completing
+      allow update: if isVolunteer() && (
+        request.resource.data.status == 'In Progress' || 
+        request.resource.data.status == 'Completed'
+      );
+    }
+
+    // Tasks collection
+    match /tasks/{taskId} {
+      // Volunteers can read and create tasks assigned to them, and update status
+      allow read, create, update: if isVolunteer() && request.resource.data.volunteerUid == request.auth.uid;
+      // Allow reading existing tasks
+      allow read, update: if isVolunteer() && resource.data.volunteerUid == request.auth.uid;
+    }
+  }
+}
